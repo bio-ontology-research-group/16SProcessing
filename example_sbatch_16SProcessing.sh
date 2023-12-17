@@ -11,4 +11,4 @@
 module load nextflow
 module load singularity
 
-nextflow run maintest.nf --in_dir directory/with/fastq/files -profile singularity
+nextflow run 16SProcessing.nf --in_dir directory/with/fastq/files -profile singularity
