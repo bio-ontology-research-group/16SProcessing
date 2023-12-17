@@ -11,7 +11,7 @@ A Nextflow workflow to run vsearch for short read 16S data. The workflow include
 
 ## Before running:
 - Install Nextflow
-- Install Singularity
+- Install Singularity or Docker
 - Move to 'data' folder in main directory and download and unzip:
     * https://www.drive5.com/sintax/rdp_16s_v18.fa.gz
     * https://mothur.s3.us-east-2.amazonaws.com/wiki/silva.gold.bacteria.zip
