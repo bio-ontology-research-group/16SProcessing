@@ -20,3 +20,6 @@ A Nextflow workflow to run vsearch for short read 16S data. The workflow include
 
 ## To run:
 nextflow run 16SProcessing.nf --in_dir directory/with/fastq/files -profile (docker OR singularity)
+
+##### Workflow can be tested with:
+nextflow run 16SProcessing.nf --in_dir test_16S_reads -profile (docker OR singularity)
