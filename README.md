@@ -17,7 +17,7 @@ A Nextflow workflow to run vsearch for short read 16S data. The workflow include
     * https://mothur.s3.us-east-2.amazonaws.com/wiki/silva.gold.bacteria.zip
     * Run unzip -p silva.gold.bacteria.zip | sed -e "s/[.-]//g" > gold.fasta
     * Run gunzip rdp_16s_v18.fa.gz
-- Change path of data folder in nextflow.config runOptions
+- Edit the file nextflow.config, edit runOptions to include the actual path of the data file in your environment
 
 ## To run:
 nextflow run 16SProcessing.nf --in_dir directory/with/fastq/files -profile (docker OR singularity)
