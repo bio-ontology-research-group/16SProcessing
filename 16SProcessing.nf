@@ -134,7 +134,7 @@ process VsearchDereplicate {
 
     script:
     """
-    vsearch --derep_fulllength ${filtered_fasta} --strand plus --output ${pair_id}.derep.fasta --sizeout --relabel ${pair_id} --fasta_width 0
+    vsearch --derep_fulllength ${filtered_fasta} --strand plus --output ${pair_id}.derep.fasta --sizeout --relabel ${pair_id}. --fasta_width 0
     """
 }
 
