@@ -9,7 +9,7 @@ A Nextflow workflow to run vsearch for short read 16S data. The workflow include
 - The workflow is configured to work with docker or singularity. The singularity profile works with SLURM by default, an sbatch job can be submitted with the available example script.
 - Fastq files must be named *_L001_R{1,2}_001.fastq.gz
 
-## Before running:
+## Setup:
 - Install Nextflow
 - Install Singularity or Docker
 - Move to 'data' folder in main directory and download and unzip:
