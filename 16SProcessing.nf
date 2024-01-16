@@ -6,13 +6,15 @@ nextflow.enable.dsl=2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     BORG/vsearch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : 
+    Github : https://github.com/bio-ontology-research-group/16SProcessing
 ----------------------------------------------------------------------------------------
 */
 
 params.in_dir = './' // Default input directory
+params.out_dir = 'results' // Default output directory
+params.skip_cutadapt = false
 params.fwd_primer = 'CCTACGGGNGGCWGCAG' // Default forward primer sequence
-params.rev_primer = 'GACTACHVGGGTATCTAATCC' // Default reverse primer sequence
+params.rev_primer = 'GGACTACNVGGGTWTCTAAT' // Default reverse primer sequence
 params.db_path = "/data/gold.fasta"
 params.rdp_path = "/data/rdp_16s_v18.fa"
 params.python_paths = "/data/"
@@ -26,7 +28,7 @@ params.python_paths = "/data/"
 process CutAdapt {
     label 'preprocess'
     tag "${pair_id}"
-    publishDir "results/trimmed_reads", mode: 'copy'
+    publishDir "${params.out_dir}_results/trimmed_reads", mode: 'copy'
 
     input:
     tuple val(pair_id), path(reads)
@@ -47,7 +49,7 @@ process CutAdapt {
 process FastQC {
     label 'preprocess'
     tag "${pair_id}"
-    publishDir "results/fastQC", mode: 'copy'
+    publishDir "${params.out_dir}_results/fastQC", mode: 'copy'
 
     input:
     tuple val(pair_id), path(read_files)
@@ -72,7 +74,7 @@ process FastQC {
 process VsearchMerge {
     label 'vsearch'
     tag "${pair_id}"
-    publishDir "results/intermediate_files", mode: 'copy'
+    publishDir "${params.out_dir}_results/intermediate_files", mode: 'copy'
 
     input:
     tuple val(pair_id), path(trimmed_reads)
@@ -87,10 +89,28 @@ process VsearchMerge {
     """
 }
 
+process VsearchMergeLog {
+    label 'vsearch'
+    tag "${pair_id}"
+    publishDir "${params.out_dir}_results/intermediate_files", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(trimmed_reads)
+
+    output:
+    path "vsearch_merge_log_${pair_id}.txt", emit: log
+
+    script:
+    def (read1, read2) = trimmed_reads
+    """
+    vsearch --fastq_mergepairs ${read1} --reverse ${read2} --fastqout ${pair_id}.merged.fastq &> vsearch_merge_log_${pair_id}.txt
+    """
+}
+
 process VsearchStats {
     label 'vsearch'
     tag "${pair_id}"
-    publishDir "results/intermediate_files", mode: 'copy'
+    publishDir "${params.out_dir}_results/intermediate_files", mode: 'copy'
 
     input:
     tuple val(pair_id), path(merged_fastq)
@@ -107,7 +127,7 @@ process VsearchStats {
 process VsearchFilter {
     label 'vsearch'
     tag "${pair_id}"
-    publishDir "results/intermediate_files", mode: 'copy'
+    publishDir "${params.out_dir}_results/intermediate_files", mode: 'copy'
 
     input:
     tuple val (pair_id), path(merged_fastq)
@@ -124,7 +144,7 @@ process VsearchFilter {
 process VsearchDereplicate {
     label 'vsearch'
     tag "${pair_id}"
-    publishDir "results/intermediate_files", mode: 'copy'
+    publishDir "${params.out_dir}_results/intermediate_files", mode: 'copy'
 
     input:
     tuple val(pair_id), path(filtered_fasta)
@@ -139,7 +159,7 @@ process VsearchDereplicate {
 }
 
 process MergeAll{
-    publishDir "results/merged_intermediates", mode: 'copy'
+    publishDir "${params.out_dir}_results/merged_intermediates", mode: 'copy'
 
     input:
     path derep_fasta_files
@@ -155,7 +175,7 @@ process MergeAll{
 
 process VsearchDerepAll{
     label 'vsearch'
-    publishDir "results/merged_intermediates", mode: 'copy'
+    publishDir "${params.out_dir}_results/merged_intermediates", mode: 'copy'
 
     input:
     path all_merged_fasta
@@ -177,7 +197,7 @@ process VsearchDerepAll{
 
 process VsearchCluster{
     label 'vsearch'
-    publishDir "results/merged_intermediates", mode: 'copy'
+    publishDir "${params.out_dir}_results/merged_intermediates", mode: 'copy'
 
     input:
     path all_derep_fasta
@@ -193,7 +213,7 @@ process VsearchCluster{
 
 process SwarmCluster{
     label 'swarm'
-    publishDir "results/merged_intermediates", mode: 'copy'
+    publishDir "${params.out_dir}_results/merged_intermediates", mode: 'copy'
 
     input:
     path all_derep_fasta
@@ -210,7 +230,7 @@ process SwarmCluster{
 
 process SingletonRemoval{
     label 'vsearch'
-    publishDir "results/merged_intermediates", mode: 'copy'
+    publishDir "${params.out_dir}_results/merged_intermediates", mode: 'copy'
 
     input:
     path swarm_centroids
@@ -226,7 +246,7 @@ process SingletonRemoval{
 
 process DenovoChimeraRemoval{
     label 'vsearch'
-    publishDir "results/merged_intermediates", mode: 'copy'
+    publishDir "${params.out_dir}_results/merged_intermediates", mode: 'copy'
 
     input:
     path nonsingleton_clusters
@@ -242,7 +262,7 @@ process DenovoChimeraRemoval{
 
 process ReferenceChimeraRemoval{
     label 'vsearch'
-    publishDir "results/merged_intermediates", mode: 'copy'
+    publishDir "${params.out_dir}_results/merged_intermediates", mode: 'copy'
 
     input:
     path denovo_nonchimeras
@@ -264,7 +284,7 @@ process ReferenceChimeraRemoval{
 
 process RelabelOTUs{
     label 'vsearch'
-    publishDir "results/OTU_tables", mode: 'copy'
+    publishDir "${params.out_dir}_results/OTU_tables", mode: 'copy'
 
     input:
     path ref_nonchimeras
@@ -280,7 +300,7 @@ process RelabelOTUs{
 
 process MapOTUs{
     label 'vsearch'
-    publishDir "results/OTU_tables", mode: 'copy'
+    publishDir "${params.out_dir}_results/OTU_tables", mode: 'copy'
 
     input:
     path all_merged_fasta
@@ -299,7 +319,7 @@ process MapOTUs{
 
 process ClassifyOTUs{
     label 'vsearch'
-    publishDir "results/OTU_tables", mode: 'copy'
+    publishDir "${params.out_dir}_results/OTU_tables", mode: 'copy'
 
     input:
     path relabeled_otus
@@ -322,7 +342,7 @@ process ClassifyOTUs{
 
 process RelativeAbundance{
     label 'python'
-    publishDir "results/OTU_tables", mode: 'copy'
+    publishDir "${params.out_dir}_results/OTU_tables", mode: 'copy'
 
     input:
     path otu_table
@@ -338,7 +358,7 @@ process RelativeAbundance{
 
 process MapOTUNames{
     label 'python'
-    publishDir "results/OTU_tables", mode: 'copy'
+    publishDir "${params.out_dir}_results/OTU_tables", mode: 'copy'
 
     input:
     path relative_abund
@@ -355,7 +375,7 @@ process MapOTUNames{
 
 process MergeTaxa{
     label 'python'
-    publishDir "results/OTU_tables", mode: 'copy'
+    publishDir "${params.out_dir}_results/OTU_tables", mode: 'copy'
 
     input:
     path mapped_relative_otus
@@ -371,11 +391,19 @@ process MergeTaxa{
 
 workflow {
     read_pairs = Channel.fromFilePairs("${params.in_dir}/*_L001_R{1,2}_001.fastq.gz", size: 2)
-    CutAdapt(read_pairs)
-    FastQC(CutAdapt.out.trimmed_reads)
 
     //Merge
+    if (!params.skip_cutadapt) {
+    CutAdapt(read_pairs)
+    FastQC(CutAdapt.out.trimmed_reads)
     vsearch_merge_out = VsearchMerge(CutAdapt.out)
+    VsearchMergeLog(CutAdapt.out)
+    } else {
+        FastQC(read_pairs)
+        vsearch_merge_out = VsearchMerge(read_pairs)
+        VsearchMergeLog(read_pairs)
+    }
+
     VsearchStats(vsearch_merge_out)
     vsearch_filter_out = VsearchFilter(vsearch_merge_out)
     derep_out = VsearchDereplicate(vsearch_filter_out)
