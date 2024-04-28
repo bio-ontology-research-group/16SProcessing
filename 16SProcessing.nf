@@ -18,6 +18,8 @@ params.rev_primer = 'GGACTACNVGGGTWTCTAAT' // Default reverse primer sequence
 params.db_path = "/data/gold.fasta"
 params.rdp_path = "/data/rdp_16s_v18.fa"
 params.python_paths = "/data/"
+params.single_end = false // false indicates paired-end by default, set to true for single-end
+
 /*
     ================================================================================
                                 Preprocessing and QC
@@ -37,13 +39,20 @@ process CutAdapt {
     tuple val(pair_id), path("*_trimmed.fastq.gz"), emit: trimmed_reads
 
     script:
-    def (read1, read2) = reads
-    """
-    cutadapt -g ${params.fwd_primer} -G ${params.rev_primer} \
-        -o ${pair_id}_L001_R1_001_trimmed.fastq.gz \
-        -p ${pair_id}_L001_R2_001_trimmed.fastq.gz \
-        ${read1} ${read2}
-    """
+    if (params.single_end) {
+        def read1 = reads
+        """
+        cutadapt -g ${params.fwd_primer} -o ${pair_id}_trimmed.fastq.gz ${read1}
+        """
+    } else {
+        def (read1, read2) = reads
+        """
+        cutadapt -g ${params.fwd_primer} -G ${params.rev_primer} \
+            -o ${pair_id}_L001_R1_001_trimmed.fastq.gz \
+            -p ${pair_id}_L001_R2_001_trimmed.fastq.gz \
+            ${read1} ${read2}
+        """
+    }
 }
 
 process FastQC {
@@ -59,10 +68,17 @@ process FastQC {
     path "*.zip", emit: fastqc_zip
 
     script:
-    def (read1, read2) = read_files
-    """
-    fastqc ${read1} ${read2}
-    """
+    if (params.single_end) {
+        def read1 = read_files
+        """
+        fastqc ${read1}
+        """
+    } else {
+        def (read1, read2) = read_files
+        """
+        fastqc ${read1} ${read2}
+        """
+    }
 }
 
 /*
@@ -81,13 +97,29 @@ process VsearchMerge {
 
     output:
     tuple val(pair_id), path("*.merged.fastq"), emit: merged_fastq
-    path "vsearch_merge_log_${pair_id}.txt", emit: merge_log // Added line to emit the log file
 
     script:
     def (read1, read2) = trimmed_reads
     """
-    vsearch --fastq_mergepairs ${read1} --reverse ${read2} --fastqout ${pair_id}.merged.fastq \
-    &> vsearch_merge_log_${pair_id}.txt
+    vsearch --fastq_mergepairs ${read1} --reverse ${read2} --fastqout ${pair_id}.merged.fastq
+    """
+}
+
+process VsearchMergeLog {
+    label 'vsearch'
+    tag "${pair_id}"
+    publishDir "${params.out_dir}_results/intermediate_files", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(trimmed_reads)
+
+    output:
+    path "vsearch_merge_log_${pair_id}.txt", emit: log
+
+    script:
+    def (read1, read2) = trimmed_reads
+    """
+    vsearch --fastq_mergepairs ${read1} --reverse ${read2} --fastqout ${pair_id}.merged.fastq &> vsearch_merge_log_${pair_id}.txt
     """
 }
 
@@ -374,20 +406,31 @@ process MergeTaxa{
 }
 
 workflow {
-    read_pairs = Channel.fromFilePairs("${params.in_dir}/*_L001_R{1,2}_001.fastq.gz", size: 2)
+    read_files = params.single_end ?
+    Channel.fromPath("${params.in_dir}/*.fastq.gz")
+        .map { file -> [file.baseName, file] } :
+    Channel.fromFilePairs("${params.in_dir}/*_L001_R{1,2}_001.fastq.gz", size: 2)
 
-    //Merge
+    // Preprocessing
     if (!params.skip_cutadapt) {
-    CutAdapt(read_pairs)
-    FastQC(CutAdapt.out.trimmed_reads)
-    vsearch_merge_out = VsearchMerge(CutAdapt.out)
+        CutAdapt(read_files)
+        FastQC(CutAdapt.out.trimmed_reads)
+        if (!params.single_end) {
+            vsearch_merge_out = VsearchMerge(CutAdapt.out.trimmed_reads)
+        } else {
+            vsearch_merge_out = CutAdapt.out.trimmed_reads
+        }
     } else {
-        FastQC(read_pairs)
-        vsearch_merge_out = VsearchMerge(read_pairs)
+        FastQC(read_files)
+        if (!params.single_end) {
+            vsearch_merge_out = VsearchMerge(read_files)
+        } else {
+            vsearch_merge_out = read_files
+        }
     }
 
-    VsearchStats(vsearch_merge_out.merged_fastq)
-    vsearch_filter_out = VsearchFilter(vsearch_merge_out.merged_fastq)
+    VsearchStats(vsearch_merge_out)
+    vsearch_filter_out = VsearchFilter(vsearch_merge_out)
     derep_out = VsearchDereplicate(vsearch_filter_out)
     derep_fasta_files = derep_out.collect()
     all_merged_fasta = MergeAll(derep_fasta_files)
