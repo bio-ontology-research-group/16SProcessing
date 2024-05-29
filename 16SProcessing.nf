@@ -97,24 +97,7 @@ process VsearchMerge {
 
     output:
     tuple val(pair_id), path("*.merged.fastq"), emit: merged_fastq
-
-    script:
-    def (read1, read2) = trimmed_reads
-    """
-    vsearch --fastq_mergepairs ${read1} --reverse ${read2} --fastqout ${pair_id}.merged.fastq
-    """
-}
-
-process VsearchMergeLog {
-    label 'vsearch'
-    tag "${pair_id}"
-    publishDir "${params.out_dir}_results/intermediate_files", mode: 'copy'
-
-    input:
-    tuple val(pair_id), path(trimmed_reads)
-
-    output:
-    path "vsearch_merge_log_${pair_id}.txt", emit: log
+    path "vsearch_merge_log_${pair_id}.txt", emit: merge_log // Added line to emit the log file
 
     script:
     def (read1, read2) = trimmed_reads
@@ -122,6 +105,7 @@ process VsearchMergeLog {
     vsearch --fastq_mergepairs ${read1} --reverse ${read2} --fastqout ${pair_id}.merged.fastq &> vsearch_merge_log_${pair_id}.txt
     """
 }
+
 
 process VsearchStats {
     label 'vsearch'
@@ -429,8 +413,8 @@ workflow {
         }
     }
 
-    VsearchStats(vsearch_merge_out)
-    vsearch_filter_out = VsearchFilter(vsearch_merge_out)
+    VsearchStats(vsearch_merge_out.merged_fastq)
+    vsearch_filter_out = VsearchFilter(vsearch_merge_out.merged_fastq)
     derep_out = VsearchDereplicate(vsearch_filter_out)
     derep_fasta_files = derep_out.collect()
     all_merged_fasta = MergeAll(derep_fasta_files)
